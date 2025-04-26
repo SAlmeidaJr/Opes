@@ -1,0 +1,88 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  email    String  @unique
+  name     String
+  password String
+  wallet   Wallet?
+}
+
+model Wallet {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  balance      Float         @default(0)
+  transactions Transaction[]
+  user         User          @relation(fields: [userId], references: [id])
+  userId       String        @unique @db.ObjectId
+}
+
+model Transaction {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  transactionType TransactionType
+  usage           TypeUse
+  cost            Float
+  timestamp       DateTime        @default(now())
+  wallet          Wallet          @relation(fields: [walletId], references: [id])
+  walletId        String          @db.ObjectId
+
+  @@index([timestamp])
+  @@index([usage])
+}
+
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+}
+
+enum TypeUse {
+  // Alimentação
+  GROCERIES
+  SNACKS
+  RESTAURANTS
+  COFFEE
+
+  // Compras e Gastos Gerais
+  SHOPPING
+  SUBSCRIPTIONS
+  PHARMACY
+  PETS
+  GIFTS
+
+  // Transporte e Mobilidade
+  MOBILITY
+  FUEL
+  MAINTENANCE
+  PARKING
+
+  // Moradia
+  RENT
+  UTILITIES
+  CLEANING
+
+  // Trabalho / Educação
+  SUPPLIES
+  COURSES
+  COWORKING
+
+  // Financeiro
+  BANK_FEES
+  LOANS
+  INVESTMENTS
+
+  // Emergências e Imprevistos
+  INCIDENTS
+  INSURANCE
+
+  // Lazer e Extras
+  TRAVEL
+  ENTERTAINMENT
+  EXTRAS
+}
