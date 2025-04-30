@@ -1,34 +1,28 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CreateUserDto } from '../../../dto/createUser.dto';
+import { CreateUserDto } from './dto/createUser.dto';
 import * as argon2 from 'argon2';
+import { LoginUser } from 'src/api/User/dto/loginUser.dto';
 
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findUserByUsernameOrEmail(name: string, email: string) {
-    return await this.prisma.user.findFirst({
-      where: {
-        OR: [
-            { name: { equals: name } },
-            { email: { equals: email } }
-            ],
-      },
-    });
-  }
-
   async register(createUserDto: CreateUserDto) {
     const { name, email, password } = createUserDto;
-
-    const checkUserExist = await this.findUserByUsernameOrEmail(name, email);
+    const checkUserExist = await this.prisma.findUserByUsernameOrEmail(
+      name,
+      email,
+    );
     if (checkUserExist) {
-      throw new Error('Usuário já cadastrado com esse nome e email');
+      throw new Error('User already registered with this name and email');
     }
-
     try {
       const hashPassword = await argon2.hash(password);
-
       const user = await this.prisma.user.create({
         data: {
           name: name,
@@ -37,26 +31,24 @@ export class UserService {
         },
       });
       return user;
-    } catch (err) {
-      throw new InternalServerErrorException('Erro ao cadastrar usuário');
-    }
+    } catch (err) {throw new InternalServerErrorException('Error when registering a user');}
   }
 
-  async login(createUserDto: CreateUserDto) {
-    const { name, password } = createUserDto;
-
-    const user = await this.findUserByUsernameOrEmail(name, ''); 
-
+  async login(loginUser: LoginUser) {
+    const { name, password } = loginUser;
+    const user = await this.prisma.findUserByUsernameOrEmail(name, '');
     if (!user) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new NotFoundException('User not Found');
     }
-    const checkPasswordValid = await argon2.verify(user.password, password)
-
-    if(!checkPasswordValid){
-        throw new Error('Credenciais inválidas');
+    const checkPasswordValid = await argon2.verify(user.password, password);
+    if (!checkPasswordValid) {
+      throw new Error('Invalid credentials');
     }
-
-    //implementar token depois -> retornar token ao usario
-    return { message: 'Login bem-sucedido', userId: user.id, name: user.name, email: user.email };
+    return {
+      message: 'Login Suceed',
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+    };
   }
 }
