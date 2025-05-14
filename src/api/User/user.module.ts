@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
+import { UserRepository } from './user.repository';
 
 @Module({
   controllers: [UserController],
@@ -16,7 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
                   signOptions: {expiresIn: '60s'},
               })
           })],
-  providers: [UserService, PrismaService, JwtStrategy],
+  providers: [UserService, PrismaService, JwtStrategy,UserRepository],
   exports: [UserService],
 })
 export class UserModule {}
