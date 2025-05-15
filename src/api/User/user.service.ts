@@ -1,62 +1,61 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
-import { CreateUserDto } from '../../../dto/createUser.dto';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { CreateUserDto } from './dto/createUser.dto';
 import * as argon2 from 'argon2';
+import { LoginUserDto } from 'src/api/User/dto/loginUser.dto';
+import { JwtService } from '@nestjs/jwt';
+import { UserRepository } from './user.repository';
+import { User } from 'generated/prisma';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private userRepository: UserRepository,
+    private jwtService: JwtService,
+  ) {}
 
-  async findUserByUsernameOrEmail(name: string, email: string) {
-    return await this.prisma.user.findFirst({
-      where: {
-        OR: [
-            { name: { equals: name } },
-            { email: { equals: email } }
-            ],
-      },
-    });
-  }
-
-  async register(createUserDto: CreateUserDto) {
+  async signUp(
+    createUserDto: CreateUserDto,
+  ): Promise<{ access_token: string }> {
     const { name, email, password } = createUserDto;
+    const checkUserExist = await this.userRepository.findUserByNameOrEmail(
+      name,
+      email,
+    );
 
-    const checkUserExist = await this.findUserByUsernameOrEmail(name, email);
     if (checkUserExist) {
-      throw new Error('Usuário já cadastrado com esse nome e email');
+      throw new ConflictException(
+        'User already registered with this name and email',
+      );
     }
-
     try {
-      const hashPassword = await argon2.hash(password);
-
-      const user = await this.prisma.user.create({
-        data: {
-          name: name,
-          email,
-          password: hashPassword,
-        },
-      });
-      return user;
+      const user = await this.userRepository.createUser(name, email, password);
+      return this.login(user);
     } catch (err) {
-      throw new InternalServerErrorException('Erro ao cadastrar usuário');
+      throw new InternalServerErrorException('Error when registering a user');
     }
   }
 
-  async login(createUserDto: CreateUserDto) {
-    const { name, password } = createUserDto;
+  async signIn(loginUserDto: LoginUserDto): Promise<{ access_token: string }> {
+    const { email, password } = loginUserDto;
+    const user = await this.userRepository.findOneByEmail(email);
 
-    const user = await this.findUserByUsernameOrEmail(name, ''); 
-
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado');
+    if (!user || !(await argon2.verify(user.password, password))) {
+      throw new UnauthorizedException('Invalid credentials');
     }
-    const checkPasswordValid = await argon2.verify(user.password, password)
+    const payload = { sub: user.id, email: user.email };
+    const token = this.jwtService.sign(payload);
+    return { access_token: token };
+  }
 
-    if(!checkPasswordValid){
-        throw new Error('Credenciais inválidas');
-    }
-
-    //implementar token depois -> retornar token ao usario
-    return { message: 'Login bem-sucedido', userId: user.id, name: user.name, email: user.email };
+  async login(user: User): Promise<{ access_token: string }> {
+    const payload = { email: user.email, sub: user.id };
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
   }
 }
